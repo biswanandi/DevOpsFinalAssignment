@@ -1,0 +1,15 @@
+---
+- hosts: all
+  become: true
+  tasks:
+  - name: Install Docker
+    apt:
+      pkg: docker.io
+      state: present
+  - name: Docker Service Started
+    service:
+      name: docker
+      state: started
+      enabled: true
+  - name: Docker Run
+    command: sudo docker run -itd -p 8888:8888 biswa539/devopsfinalassessment:1.0.0
