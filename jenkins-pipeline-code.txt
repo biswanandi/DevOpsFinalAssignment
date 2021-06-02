@@ -1,0 +1,81 @@
+try{
+    node{
+        
+        def mavenHome
+        def mavenCMD
+        def docker
+        def dockerCMD
+        def tagName = "1.0.0"
+        
+        stage('Setup'){
+            echo "Biswarup Jenkins - Setup"
+            mavenHome = tool name: 'maven-3', type: 'maven'
+            mavenCMD = "${mavenHome}/bin/mvn"
+            docker = tool name: 'docker', type: 'org.jenkinsci.plugins.docker.commons.tools.DockerTool'
+            dockerCMD = "$docker/bin/docker"
+            echo "Setup Completed"
+        }
+        
+        stage('Git Checkout'){
+            echo "Biswarup Jenkins - Git Checkout"
+            git 'https://github.com/biswanandi/DevOpsFinalAssignment.git'
+            echo "Git Checkout Completed"
+        }
+        stage('Maven Packaging'){
+            echo "Biswarup Jenkins - Maven Packaging"
+            sh "${mavenCMD} clean package"
+            echo "Maven Packaging Completed"
+        }
+        
+        stage('SonarQube'){
+            echo "Biswarup Jenkins - SonarQube"
+            sh "${mavenCMD} sonar:sonar -Dsonar.host.url=http://35.222.196.93:9000/"
+            echo "SonarQube Analysis Completed"
+        }
+        
+        stage('HTML Report'){
+            echo "Biswarup Jenkins - HTML Report"
+           // sh "${mavenCMD} clean test"
+            sh "${mavenCMD} surefire-report:report"
+            publishHTML([allowMissing: false, alwaysLinkToLastBuild: false, keepAll: false, reportDir: 'target/site', reportFiles: 'index.html', reportName: 'HTML Report', reportTitles: ''])
+            echo "HTML Report Completed"
+        }
+        stage('Build Docker Image'){
+            echo "Biswarup Jenkins - Build Docker Image"
+            //sh "apt install tree"
+            //sh "tree -a"
+            sh "${dockerCMD} build -t biswa539/devopsfinalassessment:${tagName} ."
+            echo "Build Docker Completed"
+        }
+        stage("Push Docker Image"){
+            echo "Biswarup Jenkins - Push Docker Image"
+            withCredentials([string(credentialsId: 'BiswaDockerHubCred', variable: 'dockerpwd')]) {
+                sh "${dockerCMD} login -u biswa539 -p ${dockerpwd}"
+                sh "${dockerCMD} push biswa539/devopsfinalassessment:${tagName}"
+            }
+            echo "Docker Push Completed"
+        }
+        
+        stage('Ansible'){
+            echo "Biswarup Jenkins - Ansible"
+            ansiblePlaybook credentialsId: 'BiswarupAnsible', disableHostKeyChecking: true, installation: 'ansible', inventory: '/etc/ansible/hosts', playbook: 'ansible-playbook.yml'
+            echo "Ansible Completed"
+        }
+        
+        stage('Successful Mail'){
+            echo "Biswarup Jenkins - Successful Email Trigerred"
+            emailext body: 'Pipeline Succeeded', subject: 'Jenkins Pipeline Succeeded', to: 'biswarupnandi92@gmail.com'
+        }
+    }
+}
+catch(Exception err){
+    echo "Biswarup Jenkins - Caught Exception"
+    currentBuild.result="FAILURE"
+    emailext body: 'Exception Occurred', subject: 'Jenkins Pipeline Failed', to: 'biswarupnandi92@gmail.com'
+}
+finally {
+    (currentBuild.result!= "ABORTED") && node("master") {
+        echo "Biswarup Jenkins - Finally Block"
+    }
+    
+}
